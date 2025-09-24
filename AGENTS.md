@@ -5,7 +5,7 @@ All application code lives under `brace_tracker/`, split into `cli.py` for argum
 
 ## Build, Test, and Development Commands
 Use a local virtualenv. Typical workflow:
-- `python -m brace_tracker --data-dir bt-bracedata` runs the analyzer against bundled samples (use `--verbose` for below-threshold hour detail).
+- `python -m brace_tracker --data-dir bt-bracedata` runs the analyzer against bundled samples (use `--verbose` for below-threshold hour detail). The CLI excludes days without all 24 hourly samples from the goal calculation and flags them as incomplete.
 - `make lint` (or `ruff check brace_tracker tests`) enforces style rules.
 - `make test` (or `pytest`) executes the unit suite.
 Add Make targets as you introduce new steps (e.g., `make fmt`).

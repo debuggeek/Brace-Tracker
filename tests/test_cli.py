@@ -20,9 +20,10 @@ def test_cli_reports_device_summary(tmp_path):
     start = datetime(2025, 9, 11, 0, 0, tzinfo=CENTRAL)
     for day in range(7):
         day_start = start + timedelta(days=day)
-        for hour in range(16):
+        for hour in range(24):
             timestamp = day_start + timedelta(hours=hour)
-            lines.append(f"{index},{format_timestamp(timestamp)},95")
+            temp = 95 if hour < 16 else 80
+            lines.append(f"{index},{format_timestamp(timestamp)},{temp}")
             index += 1
     csv_path.write_text("\r\n".join(lines), encoding="utf-8")
 
@@ -34,7 +35,7 @@ def test_cli_reports_device_summary(tmp_path):
     )
 
     assert "Device: ALPHA" in result.stdout
-    assert "7-day avg: 16.0 hr/day (meets goal)" in result.stdout
+    assert "7-day avg: 16.0 hr/day (based on 7/7 days, meets goal)" in result.stdout
 
 
 def test_cli_verbose_reports_below_threshold_hours(tmp_path):
@@ -46,9 +47,14 @@ def test_cli_verbose_reports_below_threshold_hours(tmp_path):
     start = datetime(2025, 9, 11, 0, 0, tzinfo=CENTRAL)
     for day in range(7):
         day_start = start + timedelta(days=day)
-        for hour in range(16):
+        for hour in range(24):
             timestamp = day_start + timedelta(hours=hour)
-            temp = 80 if day == 0 and hour in {0, 1} else 95
+            if day == 0 and hour in {0, 1}:
+                temp = 80
+            elif day > 0 and hour >= 14:
+                temp = 80
+            else:
+                temp = 95
             lines.append(f"{index},{format_timestamp(timestamp)},{temp}")
             index += 1
     csv_path.write_text("\r\n".join(lines), encoding="utf-8")

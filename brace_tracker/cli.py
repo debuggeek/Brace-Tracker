@@ -120,14 +120,18 @@ def _render_text(
     for usage in usages:
         status = "meets goal" if usage.threshold_met else "needs improvement"
         lines.append(f"Device: {usage.device_id}")
+        total_days = len(usage.days)
         lines.append(
-            f"7-day avg: {usage.average_hours_per_day:.1f} hr/day ({status})"
+            f"7-day avg: {usage.average_hours_per_day:.1f} hr/day (based on {usage.complete_days}/{total_days} days, {status})"
         )
         for day in usage.days:
             weekday = day.day.strftime("%a %Y-%m-%d")
             hours = day.hours_in_use
             suffix = "hr" if hours == 1 else "hrs"
-            lines.append(f"  {weekday}: {hours} {suffix}")
+            note = ""
+            if not day.is_complete:
+                note = f" (incomplete: {day.samples_present}/24 hours logged)"
+            lines.append(f"  {weekday}: {hours} {suffix}{note}")
             if verbose and day.below_threshold_hours:
                 times = ", ".join(h.strftime("%H:%M") for h in day.below_threshold_hours)
                 lines.append(

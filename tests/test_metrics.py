@@ -56,13 +56,15 @@ def test_compute_device_usage_returns_window_with_missing_days_filled():
     assert len(usages) == 1
     usage = usages[0]
     assert usage.device_id == "alpha"
-    assert abs(usage.average_hours_per_day - (3 / 7)) < 1e-6
+    assert usage.average_hours_per_day == 0
+    assert usage.complete_days == 0
     assert usage.days[0].day == dt("2025-09-11 00:00-0500").date()
     assert usage.days[-1].day == dt("2025-09-17 00:00-0500").date()
     hours = [day.hours_in_use for day in usage.days]
     assert hours.count(1) == 3
     assert hours.count(0) == 4
-    assert all(not day.below_threshold_hours for day in usage.days)
+    assert all(day.samples_present in {0, 1} for day in usage.days)
+    assert all(not day.is_complete for day in usage.days)
     assert usage.threshold_met is False
 
 
@@ -70,16 +72,18 @@ def test_compute_device_usage_handles_multiple_devices():
     records = []
     start = dt("2025-09-11 00:00-0500")
     for day_offset in range(7):
-        for hour_offset in range(16):
+        for hour_offset in range(24):
             timestamp = start + timedelta(days=day_offset, hours=hour_offset)
+            temp = 95.0 if hour_offset < 16 else 80.0
             records.append(
                 RawRecord(
                     device_id="beta",
                     timestamp=timestamp,
-                    temperature=95.0,
+                    temperature=temp,
                     source_path=Path("beta.csv"),
                 )
             )
+    # gamma has only a single hourly sample on the last day
     records.append(build_record("gamma", "2025-09-17 10:00-0500", 80.0))
 
     normalized = normalize_records(records)
@@ -95,10 +99,13 @@ def test_compute_device_usage_handles_multiple_devices():
     beta_usage = next(u for u in usages if u.device_id == "beta")
     assert beta_usage.threshold_met is True
     assert abs(beta_usage.average_hours_per_day - 16.0) < 1e-6
-    assert all(not day.below_threshold_hours for day in beta_usage.days)
+    assert beta_usage.complete_days == 7
+    assert all(day.samples_present == 24 for day in beta_usage.days)
+    assert all(len(day.below_threshold_hours) == 8 for day in beta_usage.days)
 
     gamma_usage = next(u for u in usages if u.device_id == "gamma")
     assert gamma_usage.average_hours_per_day == 0
+    assert gamma_usage.complete_days == 0
     below_counts = [len(day.below_threshold_hours) for day in gamma_usage.days]
     assert sum(below_counts) == 1
     assert any(

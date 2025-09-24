@@ -21,6 +21,8 @@ class DailyUsage:
     day: date
     hours_in_use: int
     below_threshold_hours: Sequence[datetime]
+    samples_present: int
+    is_complete: bool
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class DeviceUsage:
     average_hours_per_day: float
     days: Sequence[DailyUsage]
     threshold_met: bool
+    complete_days: int
 
 
 def normalize_records(records: Iterable[RawRecord]) -> List[HourlyRecord]:
@@ -103,12 +106,13 @@ def _summarize_device(
             average_hours_per_day=0.0,
             days=(),
             threshold_met=False,
+            complete_days=0,
         )
 
     anchor_day = records[-1].hour.date()
     window: List[DailyUsage] = []
     total_hours = 0.0
-    counted_days = 0
+    complete_days = 0
 
     for offset in range(window_days):
         target_day = anchor_day - timedelta(days=window_days - 1 - offset)
@@ -120,22 +124,23 @@ def _summarize_device(
         window.append(
             DailyUsage(
                 day=target_day,
-                hours_in_use=hours_in_use if meets_sample_requirement else 0,
+                hours_in_use=hours_in_use,
                 below_threshold_hours=below_hours,
                 samples_present=sample_count,
+                is_complete=meets_sample_requirement,
             )
         )
 
         if meets_sample_requirement:
             total_hours += hours_in_use
-            counted_days += 1
+            complete_days += 1
 
-    average = total_hours / counted_days if counted_days else 0.0
+    average = total_hours / complete_days if complete_days else 0.0
 
     return DeviceUsage(
         device_id=device_id,
         average_hours_per_day=average,
         days=tuple(window),
-        threshold_met=counted_days > 0 and average >= usage_threshold,
-        counted_days=counted_days,
+        threshold_met=complete_days > 0 and average >= usage_threshold,
+        complete_days=complete_days,
     )

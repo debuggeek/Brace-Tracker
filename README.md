@@ -34,6 +34,8 @@ Optional flags:
 - `--verbose` lists the hours each day that fell below the temperature threshold.
 - `--config path/to/config.toml` loads thresholds from a specific TOML file.
 
+Only days with the full 24 hourly samples contribute to the rolling average. Incomplete days remain listed with their recorded hours and a note indicating total samples captured.
+
 A convenience target mirrors the default run:
 
 ```bash
