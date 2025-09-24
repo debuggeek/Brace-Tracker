@@ -31,6 +31,7 @@ python -m brace_tracker --data-dir bt-bracedata
 Optional flags:
 - `--device ID` (repeatable) limits output to selected device IDs.
 - `--json` emits structured JSON rather than formatted text.
+- `--verbose` lists the hours each day that fell below the temperature threshold.
 - `--config path/to/config.toml` loads thresholds from a specific TOML file.
 
 A convenience target mirrors the default run:

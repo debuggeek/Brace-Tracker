@@ -62,6 +62,7 @@ def test_compute_device_usage_returns_window_with_missing_days_filled():
     hours = [day.hours_in_use for day in usage.days]
     assert hours.count(1) == 3
     assert hours.count(0) == 4
+    assert all(not day.below_threshold_hours for day in usage.days)
     assert usage.threshold_met is False
 
 
@@ -94,6 +95,12 @@ def test_compute_device_usage_handles_multiple_devices():
     beta_usage = next(u for u in usages if u.device_id == "beta")
     assert beta_usage.threshold_met is True
     assert abs(beta_usage.average_hours_per_day - 16.0) < 1e-6
+    assert all(not day.below_threshold_hours for day in beta_usage.days)
 
     gamma_usage = next(u for u in usages if u.device_id == "gamma")
     assert gamma_usage.average_hours_per_day == 0
+    below_counts = [len(day.below_threshold_hours) for day in gamma_usage.days]
+    assert sum(below_counts) == 1
+    assert any(
+        hour == dt("2025-09-17 10:00-0500") for day in gamma_usage.days for hour in day.below_threshold_hours
+    )

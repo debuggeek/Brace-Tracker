@@ -20,6 +20,7 @@ class HourlyRecord:
 class DailyUsage:
     day: date
     hours_in_use: int
+    below_threshold_hours: Sequence[datetime]
 
 
 @dataclass(frozen=True)
@@ -86,13 +87,15 @@ def _summarize_device(
     temperature_threshold: float,
     window_days: int,
 ) -> DeviceUsage:
-    hours_by_day: Dict[date, int] = {}
+    hours_in_use_by_day: Dict[date, int] = {}
+    below_threshold_by_day: Dict[date, List[datetime]] = {}
 
     for record in records:
-        if record.temperature <= temperature_threshold:
-            continue
         local_day = record.hour.date()
-        hours_by_day[local_day] = hours_by_day.get(local_day, 0) + 1
+        if record.temperature > temperature_threshold:
+            hours_in_use_by_day[local_day] = hours_in_use_by_day.get(local_day, 0) + 1
+        else:
+            below_threshold_by_day.setdefault(local_day, []).append(record.hour)
 
     if not records:
         return DeviceUsage(
@@ -104,19 +107,35 @@ def _summarize_device(
 
     anchor_day = records[-1].hour.date()
     window: List[DailyUsage] = []
-    total_hours = 0
+    total_hours = 0.0
+    counted_days = 0
 
     for offset in range(window_days):
         target_day = anchor_day - timedelta(days=window_days - 1 - offset)
-        hours_in_use = hours_by_day.get(target_day, 0)
-        window.append(DailyUsage(day=target_day, hours_in_use=hours_in_use))
-        total_hours += hours_in_use
+        hours_in_use = hours_in_use_by_day.get(target_day, 0)
+        below_hours = tuple(sorted(below_threshold_by_day.get(target_day, ())))
+        sample_count = hours_in_use + len(below_hours)
+        meets_sample_requirement = sample_count == 24
 
-    average = total_hours / window_days if window_days else 0.0
+        window.append(
+            DailyUsage(
+                day=target_day,
+                hours_in_use=hours_in_use if meets_sample_requirement else 0,
+                below_threshold_hours=below_hours,
+                samples_present=sample_count,
+            )
+        )
+
+        if meets_sample_requirement:
+            total_hours += hours_in_use
+            counted_days += 1
+
+    average = total_hours / counted_days if counted_days else 0.0
 
     return DeviceUsage(
         device_id=device_id,
         average_hours_per_day=average,
         days=tuple(window),
-        threshold_met=average >= usage_threshold,
+        threshold_met=counted_days > 0 and average >= usage_threshold,
+        counted_days=counted_days,
     )

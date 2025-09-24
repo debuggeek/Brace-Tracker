@@ -37,6 +37,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit structured JSON instead of text",
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show below-threshold hours for each day",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         help="Path to TOML config file (defaults to brace_tracker.toml)",
@@ -87,7 +92,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.json:
         print(_render_json(usages))
     else:
-        print(_render_text(usages))
+        print(
+            _render_text(
+                usages,
+                verbose=args.verbose,
+                temp_threshold=config.temperature_threshold_fahrenheit,
+            )
+        )
 
 
 def _render_json(usages: Iterable[DeviceUsage]) -> str:
@@ -99,7 +110,12 @@ def _render_json(usages: Iterable[DeviceUsage]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, default=str)
 
 
-def _render_text(usages: Iterable[DeviceUsage]) -> str:
+def _render_text(
+    usages: Iterable[DeviceUsage],
+    *,
+    verbose: bool = False,
+    temp_threshold: float,
+) -> str:
     lines: List[str] = []
     for usage in usages:
         status = "meets goal" if usage.threshold_met else "needs improvement"
@@ -112,5 +128,10 @@ def _render_text(usages: Iterable[DeviceUsage]) -> str:
             hours = day.hours_in_use
             suffix = "hr" if hours == 1 else "hrs"
             lines.append(f"  {weekday}: {hours} {suffix}")
+            if verbose and day.below_threshold_hours:
+                times = ", ".join(h.strftime("%H:%M") for h in day.below_threshold_hours)
+                lines.append(
+                    f"    below {temp_threshold:.1f}°F at: {times}"
+                )
         lines.append("")
     return "\n".join(lines).strip()
