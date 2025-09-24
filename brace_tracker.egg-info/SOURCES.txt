@@ -1,0 +1,14 @@
+pyproject.toml
+brace_tracker/__init__.py
+brace_tracker/__main__.py
+brace_tracker/cli.py
+brace_tracker/io.py
+brace_tracker/metrics.py
+brace_tracker.egg-info/PKG-INFO
+brace_tracker.egg-info/SOURCES.txt
+brace_tracker.egg-info/dependency_links.txt
+brace_tracker.egg-info/requires.txt
+brace_tracker.egg-info/top_level.txt
+tests/test_cli.py
+tests/test_io.py
+tests/test_metrics.py

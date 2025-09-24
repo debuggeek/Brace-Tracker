@@ -1,0 +1,5 @@
+
+[dev]
+pytest>=7.4
+ruff>=0.1.13
+black>=23.12

@@ -1,0 +1,4 @@
+[analysis]
+usage_threshold_hours_per_day = 16.0
+temperature_threshold_fahrenheit = 90.0
+window_days = 7

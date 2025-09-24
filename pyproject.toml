@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brace-tracker"
+version = "0.1.0"
+description = "CLI for analyzing brace usage logs"
+authors = [{name = "Brace Tracker Team"}]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "ruff>=0.1.13",
+  "black>=23.12",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.black]
+target-version = ["py311"]
+line-length = 88
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = ["E", "F", "I", "UP"]
+ignore = []
+
+[tool.ruff.isort]
+known-first-party = ["brace_tracker"]
