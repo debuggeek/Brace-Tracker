@@ -19,14 +19,20 @@ class RawRecord:
     source_path: Path
 
 
-def load_raw_records(data_dir: Path) -> List[RawRecord]:
-    """Load all CSV logs from ``data_dir`` into memory."""
+def load_raw_records(source: Path) -> List[RawRecord]:
+    """Load CSV logs from a directory or single file into memory."""
 
-    if not data_dir.exists():
-        raise FileNotFoundError(f"Data directory not found: {data_dir}")
+    if not source.exists():
+        raise FileNotFoundError(f"Data source not found: {source}")
+
+    if source.is_file():
+        return _read_csv(source)
+
+    if not source.is_dir():
+        raise FileNotFoundError(f"Data source not found: {source}")
 
     records: List[RawRecord] = []
-    for path in sorted(_iter_csv_paths(data_dir)):
+    for path in sorted(_iter_csv_paths(source)):
         records.extend(_read_csv(path))
     return records
 

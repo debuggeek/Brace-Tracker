@@ -1,5 +1,10 @@
 .PHONY: install lint fmt test run run-verbose run-30
 
+DATA_DIR ?= bt-bracedata
+INPUT_FILE ?=
+BRACE_TRACKER_CMD = . .venv/bin/activate && python -m brace_tracker
+DATA_ARGS = $(if $(INPUT_FILE),--input-file "$(INPUT_FILE)",--data-dir $(DATA_DIR))
+
 install:
 	python3 -m venv .venv
 	. .venv/bin/activate && pip install -U pip && pip install -e .[dev]
@@ -14,10 +19,10 @@ test:
 	. .venv/bin/activate && pytest
 
 run:
-	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata
+	$(BRACE_TRACKER_CMD) $(DATA_ARGS)
 
 run-verbose:
-	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata --verbose
+	$(BRACE_TRACKER_CMD) $(DATA_ARGS) --verbose
 
 run-30:
-	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata --days 30
+	$(BRACE_TRACKER_CMD) $(DATA_ARGS) --days 30

@@ -200,3 +200,28 @@ def test_cli_respects_no_color_env(tmp_path):
 
     assert "\033[" not in result.stdout
 
+
+def test_cli_accepts_input_file(tmp_path):
+    csv_path = tmp_path / "SIGMA_log.csv"
+
+    lines = ["", "index,date,temperature"]
+    start = datetime(2025, 9, 11, 0, 0, tzinfo=CENTRAL)
+    for index, hour in enumerate(range(24)):
+        timestamp = start + timedelta(hours=hour)
+        lines.append(f"{index},{format_timestamp(timestamp)},95")
+    csv_path.write_text("\r\n".join(lines), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "brace_tracker",
+            "--input-file",
+            str(csv_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Device: SIGMA" in result.stdout

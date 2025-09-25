@@ -8,7 +8,7 @@ import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Sequence, TextIO
 
 from . import __version__
 from .config import load_config
@@ -31,11 +31,17 @@ COLOR_NEVER = "never"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Brace usage analyzer")
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
         "--data-dir",
         type=Path,
         default=DEFAULT_DATA_DIR,
         help="Directory containing device CSV logs",
+    )
+    source_group.add_argument(
+        "--input-file",
+        type=Path,
+        help="Path to a single device CSV log",
     )
     parser.add_argument(
         "--device",
@@ -84,10 +90,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.days is not None and args.days <= 0:
         parser.error("--days must be a positive integer")
 
+    data_source = args.input_file if args.input_file is not None else args.data_dir
+
     try:
-        raw_records = load_raw_records(args.data_dir)
-    except FileNotFoundError as exc:
-        parser.error(str(exc))
+        raw_records = load_raw_records(data_source)
+    except FileNotFoundError:
+        if args.input_file:
+            parser.error(f"Data file not found: {args.input_file}")
+        else:
+            parser.error(f"Data directory not found: {args.data_dir}")
         return
 
     if not raw_records:
@@ -170,7 +181,7 @@ def _render_text(
         )
         avg_line = (
             "7-day avg: "
-            f"{seven_day_fragment} (based on {usage.complete_days_last_seven}/{recent_days} days)"
+            f"{seven_day_fragment} (based on {usage.complete_days_last_seven}/{recent_days} days, {status})"
             f" | overall avg ({total_days} days): "
             f"{overall_fragment} (based on {usage.complete_days_overall}/{total_days} days, {status})"
         )
@@ -236,3 +247,4 @@ def _should_use_color(mode: str, stream: TextIO = sys.stdout) -> bool:
         return False
     isatty = getattr(stream, "isatty", None)
     return bool(isatty and isatty())
+
