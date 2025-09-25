@@ -1,4 +1,4 @@
-.PHONY: install lint fmt test run
+.PHONY: install lint fmt test run run-verbose run-30
 
 install:
 	python3 -m venv .venv
@@ -15,3 +15,9 @@ test:
 
 run:
 	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata
+
+run-verbose:
+	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata --verbose
+
+run-30:
+	. .venv/bin/activate && python -m brace_tracker --data-dir bt-bracedata --days 30

@@ -56,8 +56,10 @@ def test_compute_device_usage_returns_window_with_missing_days_filled():
     assert len(usages) == 1
     usage = usages[0]
     assert usage.device_id == "alpha"
-    assert usage.average_hours_per_day == 0
-    assert usage.complete_days == 0
+    assert usage.seven_day_average_hours_per_day == 0
+    assert usage.overall_average_hours_per_day == 0
+    assert usage.complete_days_last_seven == 0
+    assert usage.complete_days_overall == 0
     assert usage.days[0].day == dt("2025-09-11 00:00-0500").date()
     assert usage.days[-1].day == dt("2025-09-17 00:00-0500").date()
     hours = [day.hours_in_use for day in usage.days]
@@ -98,16 +100,56 @@ def test_compute_device_usage_handles_multiple_devices():
 
     beta_usage = next(u for u in usages if u.device_id == "beta")
     assert beta_usage.threshold_met is True
-    assert abs(beta_usage.average_hours_per_day - 16.0) < 1e-6
-    assert beta_usage.complete_days == 7
+    assert abs(beta_usage.seven_day_average_hours_per_day - 16.0) < 1e-6
+    assert abs(beta_usage.overall_average_hours_per_day - 16.0) < 1e-6
+    assert beta_usage.complete_days_last_seven == 7
+    assert beta_usage.complete_days_overall == 7
     assert all(day.samples_present == 24 for day in beta_usage.days)
     assert all(len(day.below_threshold_hours) == 8 for day in beta_usage.days)
 
     gamma_usage = next(u for u in usages if u.device_id == "gamma")
-    assert gamma_usage.average_hours_per_day == 0
-    assert gamma_usage.complete_days == 0
+    assert gamma_usage.seven_day_average_hours_per_day == 0
+    assert gamma_usage.overall_average_hours_per_day == 0
+    assert gamma_usage.complete_days_last_seven == 0
+    assert gamma_usage.complete_days_overall == 0
     below_counts = [len(day.below_threshold_hours) for day in gamma_usage.days]
     assert sum(below_counts) == 1
     assert any(
         hour == dt("2025-09-17 10:00-0500") for day in gamma_usage.days for hour in day.below_threshold_hours
     )
+
+
+def test_compute_device_usage_reports_recent_and_overall_averages():
+    records = []
+    start = dt("2025-09-01 00:00-0500")
+    for day_offset in range(10):
+        for hour_offset in range(24):
+            timestamp = start + timedelta(days=day_offset, hours=hour_offset)
+            if day_offset < 3:
+                temp = 95.0 if hour_offset < 20 else 80.0
+            else:
+                temp = 95.0 if hour_offset < 10 else 80.0
+            records.append(
+                RawRecord(
+                    device_id="alpha",
+                    timestamp=timestamp,
+                    temperature=temp,
+                    source_path=Path("alpha.csv"),
+                )
+            )
+
+    normalized = normalize_records(records)
+
+    usage = compute_device_usage(
+        normalized,
+        usage_threshold=16.0,
+        temperature_threshold=90.0,
+        window_days=10,
+    )[0]
+
+    assert len(usage.days) == 10
+    assert usage.complete_days_last_seven == 7
+    assert usage.complete_days_overall == 10
+    assert abs(usage.seven_day_average_hours_per_day - 10.0) < 1e-6
+    assert abs(usage.overall_average_hours_per_day - 13.0) < 1e-6
+    assert usage.threshold_met is False

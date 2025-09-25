@@ -8,7 +8,7 @@ import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable, List, Sequence, TextIO
+from typing import Iterable, List, Sequence
 
 from . import __version__
 from .config import load_config
@@ -60,6 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show below-threshold hours for each day",
     )
     parser.add_argument(
+        "--days",
+        type=int,
+        help="Override the trailing window length in days",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         help="Path to TOML config file (defaults to brace_tracker.toml)",
@@ -75,6 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.days is not None and args.days <= 0:
+        parser.error("--days must be a positive integer")
 
     try:
         raw_records = load_raw_records(args.data_dir)
@@ -100,11 +108,13 @@ def main(argv: Sequence[str] | None = None) -> None:
             print("No matching device data", file=sys.stderr)
             sys.exit(1)
 
+    window_days = args.days if args.days is not None else config.window_days
+
     usages = compute_device_usage(
         hourly_records,
         usage_threshold=config.usage_threshold_hours_per_day,
         temperature_threshold=config.temperature_threshold_fahrenheit,
-        window_days=config.window_days,
+        window_days=window_days,
     )
 
     if args.json:
@@ -143,11 +153,26 @@ def _render_text(
         status = "meets goal" if usage.threshold_met else "needs improvement"
         lines.append(f"Device: {usage.device_id}")
         total_days = len(usage.days)
-        avg_hours_text = f"{usage.average_hours_per_day:.1f} hr/day"
+        recent_days = min(7, total_days)
+        seven_day_text = f"{usage.seven_day_average_hours_per_day:.1f} hr/day"
+        overall_text = f"{usage.overall_average_hours_per_day:.1f} hr/day"
+        seven_day_fragment = _colorize_hours_text(
+            seven_day_text,
+            hours=usage.seven_day_average_hours_per_day,
+            threshold=usage_threshold,
+            use_color=use_color,
+        )
+        overall_fragment = _colorize_hours_text(
+            overall_text,
+            hours=usage.overall_average_hours_per_day,
+            threshold=usage_threshold,
+            use_color=use_color,
+        )
         avg_line = (
             "7-day avg: "
-            f"{_colorize_hours_text(avg_hours_text, hours=usage.average_hours_per_day, threshold=usage_threshold, use_color=use_color)}"
-            f" (based on {usage.complete_days}/{total_days} days, {status})"
+            f"{seven_day_fragment} (based on {usage.complete_days_last_seven}/{recent_days} days)"
+            f" | overall avg ({total_days} days): "
+            f"{overall_fragment} (based on {usage.complete_days_overall}/{total_days} days, {status})"
         )
         lines.append(avg_line)
         for day in usage.days:

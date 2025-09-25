@@ -28,10 +28,12 @@ class DailyUsage:
 @dataclass(frozen=True)
 class DeviceUsage:
     device_id: str
-    average_hours_per_day: float
+    seven_day_average_hours_per_day: float
+    overall_average_hours_per_day: float
     days: Sequence[DailyUsage]
     threshold_met: bool
-    complete_days: int
+    complete_days_last_seven: int
+    complete_days_overall: int
 
 
 def normalize_records(records: Iterable[RawRecord]) -> List[HourlyRecord]:
@@ -103,16 +105,16 @@ def _summarize_device(
     if not records:
         return DeviceUsage(
             device_id=device_id,
-            average_hours_per_day=0.0,
+            seven_day_average_hours_per_day=0.0,
+            overall_average_hours_per_day=0.0,
             days=(),
             threshold_met=False,
-            complete_days=0,
+            complete_days_last_seven=0,
+            complete_days_overall=0,
         )
 
     anchor_day = records[-1].hour.date()
     window: List[DailyUsage] = []
-    total_hours = 0.0
-    complete_days = 0
 
     for offset in range(window_days):
         target_day = anchor_day - timedelta(days=window_days - 1 - offset)
@@ -131,16 +133,26 @@ def _summarize_device(
             )
         )
 
-        if meets_sample_requirement:
-            total_hours += hours_in_use
-            complete_days += 1
+    complete_days_overall = sum(1 for day in window if day.is_complete)
+    total_hours_overall = sum(day.hours_in_use for day in window if day.is_complete)
+    overall_average = (
+        total_hours_overall / complete_days_overall if complete_days_overall else 0.0
+    )
 
-    average = total_hours / complete_days if complete_days else 0.0
+    recent_window_size = min(7, len(window))
+    recent_days = window[-recent_window_size:] if window else []
+    complete_days_recent = sum(1 for day in recent_days if day.is_complete)
+    total_hours_recent = sum(day.hours_in_use for day in recent_days if day.is_complete)
+    seven_day_average = (
+        total_hours_recent / complete_days_recent if complete_days_recent else 0.0
+    )
 
     return DeviceUsage(
         device_id=device_id,
-        average_hours_per_day=average,
+        seven_day_average_hours_per_day=seven_day_average,
+        overall_average_hours_per_day=overall_average,
         days=tuple(window),
-        threshold_met=complete_days > 0 and average >= usage_threshold,
-        complete_days=complete_days,
+        threshold_met=complete_days_recent > 0 and seven_day_average >= usage_threshold,
+        complete_days_last_seven=complete_days_recent,
+        complete_days_overall=complete_days_overall,
     )
