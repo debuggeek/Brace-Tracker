@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from .io import RawRecord
 
@@ -34,6 +35,7 @@ class DeviceUsage:
     threshold_met: bool
     complete_days_last_seven: int
     complete_days_overall: int
+    minimum_hours_next_day_to_meet_threshold: Optional[int]
 
 
 def normalize_records(records: Iterable[RawRecord]) -> List[HourlyRecord]:
@@ -111,6 +113,7 @@ def _summarize_device(
             threshold_met=False,
             complete_days_last_seven=0,
             complete_days_overall=0,
+            minimum_hours_next_day_to_meet_threshold=None,
         )
 
     anchor_day = records[-1].hour.date()
@@ -147,6 +150,24 @@ def _summarize_device(
         total_hours_recent / complete_days_recent if complete_days_recent else 0.0
     )
 
+    forecast_hours: Optional[int] = None
+    if complete_days_recent > 0 and recent_days:
+        future_recent_days = recent_days[1:] if len(recent_days) == 7 else recent_days
+        retained_complete_hours = [
+            day.hours_in_use for day in future_recent_days if day.is_complete
+        ]
+        total_retained = sum(retained_complete_hours)
+        future_complete_days = len(retained_complete_hours) + 1
+        required_hours = (
+            usage_threshold * future_complete_days - total_retained
+        )
+        if required_hours <= 0:
+            forecast_hours = 0
+        elif required_hours > 24:
+            forecast_hours = None
+        else:
+            forecast_hours = int(math.ceil(required_hours))
+
     return DeviceUsage(
         device_id=device_id,
         seven_day_average_hours_per_day=seven_day_average,
@@ -155,4 +176,5 @@ def _summarize_device(
         threshold_met=complete_days_recent > 0 and seven_day_average >= usage_threshold,
         complete_days_last_seven=complete_days_recent,
         complete_days_overall=complete_days_overall,
+        minimum_hours_next_day_to_meet_threshold=forecast_hours,
     )

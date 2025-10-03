@@ -1,11 +1,15 @@
-from pathlib import Path
-
 import pytest
 
+from brace_tracker import config as config_module
 from brace_tracker.config import AnalysisConfig, load_config
 
 
-def test_load_config_returns_defaults_when_missing(tmp_path):
+def test_load_config_returns_defaults_when_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        config_module,
+        "DEFAULT_CONFIG_PATH",
+        tmp_path / "missing.toml",
+    )
     config = load_config(path=None)
     assert isinstance(config, AnalysisConfig)
     assert config.usage_threshold_hours_per_day == 16.0

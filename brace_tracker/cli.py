@@ -219,6 +219,26 @@ def _render_text(
             f"{overall_fragment} (based on {usage.complete_days_overall}/{total_days} days, {status})"
         )
         lines.append(avg_line)
+        forecast_hours = usage.minimum_hours_next_day_to_meet_threshold
+        threshold_text = f"{usage_threshold:.1f} hr/day"
+        if forecast_hours is None:
+            if usage.complete_days_last_seven == 0:
+                lines.append("  Forecast: n/a (no complete days yet)")
+            else:
+                lines.append(
+                    "  Forecast: need more than 24 hrs tomorrow to reach the "
+                    f"{threshold_text} threshold"
+                )
+        elif forecast_hours == 0:
+            lines.append(
+                "  Forecast: threshold already secure - 0 hrs needed tomorrow"
+            )
+        else:
+            suffix = "hr" if forecast_hours == 1 else "hrs"
+            lines.append(
+                "  Forecast: need >= "
+                f"{forecast_hours} {suffix} tomorrow to reach the {threshold_text} threshold"
+            )
         for day in usage.days:
             weekday = day.day.strftime("%a %Y-%m-%d")
             hours = day.hours_in_use

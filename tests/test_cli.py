@@ -1,9 +1,11 @@
+import math
 import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 
 from brace_tracker.cli import ANSI_GREEN, ANSI_RED, ANSI_RESET, ANSI_YELLOW
+from brace_tracker.config import load_config
 
 
 FORMAT = "%a %b %d %Y %H:%M:%S GMT%z"
@@ -51,6 +53,23 @@ def test_cli_reports_device_summary(tmp_path):
         f"{ANSI_GREEN}16.0 hr/day{ANSI_RESET}"
         " (based on 7/7 days, meets goal)"
     ) in result.stdout
+    usage_threshold = load_config().usage_threshold_hours_per_day
+    retained_hours = 6 * 16  # six complete days remain once the window advances
+    required_hours = usage_threshold * 7 - retained_hours
+    if required_hours <= 0:
+        assert "Forecast: threshold already secure - 0 hrs needed tomorrow" in result.stdout
+    elif required_hours > 24:
+        assert (
+            "Forecast: need more than 24 hrs tomorrow to reach the "
+            f"{usage_threshold:.1f} hr/day threshold"
+        ) in result.stdout
+    else:
+        expected_hours = math.ceil(required_hours)
+        suffix = "hr" if expected_hours == 1 else "hrs"
+        assert (
+            "Forecast: need >= "
+            f"{expected_hours} {suffix} tomorrow to reach the {usage_threshold:.1f} hr/day threshold"
+        ) in result.stdout
 
 
 def test_cli_verbose_reports_below_threshold_hours(tmp_path):
@@ -93,7 +112,8 @@ def test_cli_verbose_reports_below_threshold_hours(tmp_path):
     )
 
     assert "needs improvement" in result.stdout
-    assert "below 90.0°F at: 00:00, 01:00" in result.stdout
+    threshold = load_config().temperature_threshold_fahrenheit
+    assert f"below {threshold:.1f}°F at: 00:00, 01:00" in result.stdout
 
 
 def test_cli_colors_daily_hours_relative_to_threshold(tmp_path):
