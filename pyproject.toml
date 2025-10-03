@@ -33,3 +33,7 @@ ignore = []
 
 [tool.ruff.isort]
 known-first-party = ["brace_tracker"]
+
+[tool.setuptools.packages.find]
+include = ["brace_tracker*"]
+exclude = ["tests", "tests.*", "tmpdata_cli"]

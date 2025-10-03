@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import csv
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Iterator, List
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,18 +26,24 @@ class RawRecord:
 def load_raw_records(source: Path) -> List[RawRecord]:
     """Load CSV logs from a directory or single file into memory."""
 
+    logger.debug("Resolving data source: %s", source)
     if not source.exists():
         raise FileNotFoundError(f"Data source not found: {source}")
 
     if source.is_file():
-        return _read_csv(source)
+        logger.debug("Source identified as file")
+        records = _read_csv(source)
+        logger.debug("Read %d records from %s", len(records), source)
+        return records
 
     if not source.is_dir():
         raise FileNotFoundError(f"Data source not found: {source}")
 
     records: List[RawRecord] = []
     for path in sorted(_iter_csv_paths(source)):
+        logger.debug("Reading CSV file: %s", path)
         records.extend(_read_csv(path))
+    logger.debug("Aggregated %d records from directory %s", len(records), source)
     return records
 
 
@@ -57,11 +67,13 @@ def _read_csv(path: Path) -> List[RawRecord]:
                 timestamp = _parse_timestamp(date_raw)
             except ValueError:
                 # Skip rows we cannot interpret.
+                logger.debug("Skipping row with unparsable timestamp in %s", path)
                 continue
 
             try:
                 temperature = float(temp_raw)
             except ValueError:
+                logger.debug("Skipping row with invalid temperature in %s", path)
                 continue
 
             rows.append(
@@ -73,6 +85,7 @@ def _read_csv(path: Path) -> List[RawRecord]:
                 )
             )
 
+    logger.debug("Parsed %d rows for device %s from %s", len(rows), device_id, path)
     return rows
 
 

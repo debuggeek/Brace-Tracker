@@ -225,3 +225,33 @@ def test_cli_accepts_input_file(tmp_path):
     )
 
     assert "Device: SIGMA" in result.stdout
+
+
+def test_cli_trace_emits_debug_logs(tmp_path):
+    csv_path = tmp_path / "TRACE_log.csv"
+
+    lines = ["", "index,date,temperature"]
+    start = datetime(2025, 9, 11, 0, 0, tzinfo=CENTRAL)
+    for index, hour in enumerate(range(2)):
+        timestamp = start + timedelta(hours=hour)
+        lines.append(f"{index},{format_timestamp(timestamp)},95")
+    csv_path.write_text("\r\n".join(lines), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "brace_tracker",
+            "--input-file",
+            str(csv_path),
+            "--trace",
+            "--color",
+            "never",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Device: TRACE" in result.stdout
+    assert "DEBUG brace_tracker.cli: Loading raw records" in result.stderr

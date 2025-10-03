@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from dataclasses import asdict
@@ -27,6 +28,9 @@ NEAR_THRESHOLD_BUFFER_HOURS = 2.0
 COLOR_AUTO = "auto"
 COLOR_ALWAYS = "always"
 COLOR_NEVER = "never"
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,6 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"brace-tracker {__version__}",
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="Enable verbose debug logging to stderr",
+    )
     return parser
 
 
@@ -90,8 +99,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.days is not None and args.days <= 0:
         parser.error("--days must be a positive integer")
 
+    _configure_logging(args.trace)
+    if args.trace:
+        logger.debug("Trace logging enabled")
+
     data_source = args.input_file if args.input_file is not None else args.data_dir
 
+    logger.debug("Loading raw records from %s", data_source)
     try:
         raw_records = load_raw_records(data_source)
     except FileNotFoundError:
@@ -102,9 +116,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
 
     if not raw_records:
+        logger.debug("No records found at %s", data_source)
         print("No records found", file=sys.stderr)
         sys.exit(1)
 
+    logger.debug("Loaded %d raw records", len(raw_records))
+
+    logger.debug(
+        "Loading configuration from %s",
+        args.config if args.config is not None else "default config",
+    )
     try:
         config = load_config(args.config)
     except FileNotFoundError as exc:
@@ -112,14 +133,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
 
     hourly_records = normalize_records(raw_records)
+    logger.debug("Normalized to %d hourly records", len(hourly_records))
     if args.devices:
         device_filter = set(args.devices)
+        logger.debug("Filtering to devices: %s", ", ".join(sorted(device_filter)))
         hourly_records = [r for r in hourly_records if r.device_id in device_filter]
+        logger.debug("Filtered to %d hourly records after device selection", len(hourly_records))
         if not hourly_records:
             print("No matching device data", file=sys.stderr)
             sys.exit(1)
 
     window_days = args.days if args.days is not None else config.window_days
+    logger.debug(
+        "Computing usage metrics (window=%d days, usage_threshold=%.1f, temp_threshold=%.1f)",
+        window_days,
+        config.usage_threshold_hours_per_day,
+        config.temperature_threshold_fahrenheit,
+    )
 
     usages = compute_device_usage(
         hourly_records,
@@ -127,10 +157,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         temperature_threshold=config.temperature_threshold_fahrenheit,
         window_days=window_days,
     )
+    logger.debug("Computed usage for %d devices", len(usages))
 
     if args.json:
+        logger.debug("Rendering JSON output")
         print(_render_json(usages))
     else:
+        logger.debug("Rendering text output (verbose=%s)", args.verbose)
         print(
             _render_text(
                 usages,
@@ -248,3 +281,13 @@ def _should_use_color(mode: str, stream: TextIO = sys.stdout) -> bool:
     isatty = getattr(stream, "isatty", None)
     return bool(isatty and isatty())
 
+
+def _configure_logging(enable_trace: bool) -> None:
+    if not enable_trace:
+        return
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
